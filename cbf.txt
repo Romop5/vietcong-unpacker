@@ -1,0 +1,38 @@
+File format:
+
+- header [52 bytes] 0x34
+	- 4 bytes	signature 	0x46474942	"BIGF" 	Big File format
+	- 4 bytes 	signature2	0x4C425A01	LSB = isEncrypted/compressed
+	- 4 bytes   fileSize
+	- 4 bytes	unk
+	- 4 bytes	the count of files, packed in CBF
+	- 4 bytes	table of files - a 4-bytes file offset
+	- 4 bytes   unk
+	- 4 bytes	sizeOf(TableOfFiles)
+	
+File Table structure
+- Member:
+	- 2 bytes	size of a row
+		Note: each row contains a file name
+	- 4 bytes 	start offset
+	- 0x10		isCompressedWithLZW	
+	- 0x14		size of file (first byte = key)
+	- 0x20		state (1 - LZW compressed, 0 - uncompressed)
+	- 0x2A offset	a NULL-terminated filename
+	
+LZW file
+- 0C file header
+		4 bytes 	magic byte 0x5D2E2E5B
+		4 bytes		size - input
+		4 bytes		size - ouput
+	
+	
+	
+File's data are encrypted using the first byte of file size
+	
+function, which decrypts The table of files
+100172FF      90            NOP                 
+10017300  /$  83EC 0C       SUB ESP,0C
+
+                     ;  decrypt the table of files
+

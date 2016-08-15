@@ -1,19 +1,63 @@
-#include <map>
-#include <iostream>
-#include <cstdint>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include <clocale>
 
+#include <iostream>
+
+#include <map>
+#include <set>
+#include <vector>
 
 typedef struct {
-	uint32_t	magicNumber;
+	uint32_t	magic;
 	uint32_t	sizeOfCompressed;
-	uint32_t	sizeOfDecompressed;
+	uint32_t	ouput;
 } LZW_fileHeader;
+
+
+
+typedef std::vector<unsigned char> code;
+
+std::string codeToString(code input)
+{
+	std::string out;
+	for (auto c : input)
+	{
+		if (isprint(c))
+			out.push_back(c);
+		else {
+			char token[10];
+			sprintf(token, "\\x%02x", c);
+			out += token;
+		}
+	}
+	out.push_back(NULL);
+	return out;
+}
+
+
+std::string outputCode(code input)
+{
+	std::string out;
+	for (auto c : input)
+	{
+			out.push_back(c);
+	}
+	out.push_back(NULL);
+	return out;
+}
 
 class Decoder
 {
 private:
 	unsigned int	counter;
-	std::map<std::string, uint32_t>	dict;
+	//std::map<std::string, uint32_t>	dict;
+
+	std::map<uint32_t, code>	dict;
+
+	std::set<code> tokens;
 	unsigned int	sizeOfCode;
 	unsigned int	position;
 public:
@@ -21,17 +65,23 @@ public:
 	{
 		this->counter = 257;
 		this->dict.clear();
+		this->tokens.clear();
 		this->sizeOfCode = 9;
 		this->position = 0;
 	}
-	void	addToken(std::string tok)
+	void	addToken(code tok)
 	{
 		if (tok.size() > 1)
 		{
-			if (this->dict.count(tok) == 0)
+
+			//if (this->dict.count(tok) == 0)
+			if (this->tokens.count(tok) == 0)
 			{
-				this->dict[tok] = counter++;
-				//printf("Adding tok: '%s' (%u) with ID: %x\n", tok.c_str(), tok.size(), this->dict[tok]);
+				uint32_t id = counter++;
+				this->dict[id] = tok;
+				//this->dict[tok] = counter++;
+
+				//printf("=Adding tok: '%s' (%u) with ID: %x\n", codeToString(tok).c_str(), tok.size(), id);
 			}
 			else {
 				//printf("Already in dict: %s\n",tok.c_str());
@@ -41,56 +91,87 @@ public:
 		if (counter + 2 > (1 << this->sizeOfCode))
 		{
 			this->sizeOfCode++;
-			//printf("Current size: %x (dict len: %x)\n", this->sizeOfCode, this->counter);
+			//printf("Current size: %x (dict len: %x)\n",this->sizeOfCode,this->counter);
 		}
 	}
-	bool isTokenInDict(std::string token)
+	bool isTokenInDict(code token)
 	{
-		try {
-			return (this->dict[token] > 0);
+		return (this->tokens.count(token) > 0);
+		/*try {
+		return (this->dict[token] > 0);
 		}
 		catch (int error)
 		{
-			return false;
-		}
+		return false;
+		}*/
 	}
 
-	/*bool getTokenForID(unsigned id, std::string* token)
+	bool getTokenForID(unsigned id, code* token)
 	{
 		if (id < 256)
 		{
 			token += (char)id;
 			return true;
 		}
-		for (auto m : this->dict)
+
+		try
 		{
-			if (m.second == id)
-			{
-				*token = m.first;
-				return true;
-			}
+			*token = this->dict[id];
+			return true;
+		}
+		catch (int err)
+		{
+			return false;
 		}
 
-		return false;
-	}*/
+		/*for (auto m : this->dict)
+		{
+		if (m.second == id)
+		{
+		*token = m.first;
+		return true;
+		}
+		}*/
 
-	std::string getToken(unsigned id)
+		return false;
+	}
+
+	code getToken(unsigned id)
 	{
 		if (id < 256)
 		{
-			std::string s;
-			s += (char)id;
+			code s;
+			s.push_back((char)id);
 			return s;
 		}
-		for (auto m : this->dict)
-		{
-			if (m.second == id)
+		else {
+			try {
+
+				if (this->counter > id)
+				{
+					code str = this->dict[id];
+					//printf("For %X returning %s\n", id, codeToString(str).c_str());
+					return str;
+				}
+				throw - 1;
+
+			}
+			catch (int err)
 			{
-				return m.first;
+				//printf("ID %x is not in da dict\n", id);
+				throw err;
 			}
 		}
+		return code();
 
-		throw - 1;
+		/*for (auto m : this->dict)
+		{
+		if (m.second == id)
+		{
+		return m.first;
+		}
+		}*/
+
 	}
 
 	/*unsigned short	getValue(unsigned char data[], unsigned position)
@@ -119,7 +200,7 @@ public:
 		//printf("getVal(%x) = %X - %u - %u (%d)\n", tok, *(uint32_t*)(data + bytePos), aShift, bShift, this->sizeOfCode);
 		position += this->sizeOfCode;
 
-		//printf("getVal %4x\n",tok);
+		//printf("getVal %4x\n", tok);
 		return tok;
 
 
@@ -177,18 +258,19 @@ public:
 		return output;
 	}
 
-	std::string decode(unsigned char data[], unsigned len)
+	code decode(unsigned char data[], unsigned len)
 	{
-		std::string out = "";
+		code out;
 
-		std::string entry;
+		code entry;
 		char ch;
 		unsigned int prevcode, currcode;
 
 		prevcode = this->getValue(data);
 
-		try{
-			out += this->getToken(prevcode);
+		try {
+			code cd = this->getToken(prevcode);
+			out.insert(out.end(), cd.begin(), cd.end());
 		}
 		catch (int error)
 		{
@@ -206,7 +288,7 @@ public:
 			if (currcode == 0x100)
 				break;
 
-			try{
+			try {
 				entry = getToken(currcode);
 			}
 			catch (int error)
@@ -217,23 +299,40 @@ public:
 				currcode = prevcode;
 				entry = getToken(currcode);
 			}
-			out += entry;
+
+			if (entry.size() == 0)
+			{
+				printf("Currcode is invalid: %x ", currcode);
+				//return "INV";
+				return code();
+			}
+
+			// append
+			out.insert(out.end(), entry.begin(), entry.end());
+			//printf(">>>Appending '%s' into output.\n", codeToString(entry).c_str());
 
 			ch = entry[0];
 			//add((translation of prevcode) + ch) to dictionary;
 
 			//printf("Currcode: %x\n", currcode);
 
-			try{
-				this->addToken(this->getToken(prevcode) + ch);
+			try {
+				code addCode = this->getToken(prevcode);
+				addCode.push_back(ch);
+				this->addToken(addCode);
 			}
 			catch (int a) {
 				printf("Fuck %x (Curr %x)\n", prevcode, currcode);
 			}
 			prevcode = currcode;
 			if (badVal != -1)
+			{
 				prevcode = badVal;
+				//printf("---Push back\n");
+				out.push_back(entry[0]);
+			}
 		}
 		return out;
 	}
+
 };

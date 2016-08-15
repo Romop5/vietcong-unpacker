@@ -153,7 +153,7 @@ bool createDir(std::string path)
 	{
 		printf("Start: %d Stop: %d\n",start,pos);
 		
-		std::string dir = path.substr(start, pos);
+		std::string dir = path.substr(0, pos);
 
 		printf("Dir: %s\n", dir.c_str());
 
@@ -235,12 +235,18 @@ int unpackFile(gameFile* file, FILE* packedCbf)
 				  printf("Decrypting ...\n");
 
 				  Decoder	dec;
-				  std::string output = dec.decode(data, inputHeader.sizeOfCompressed);
+				  code output = dec.decode(data, inputHeader.sizeOfCompressed);
 
-				  fwrite(output.c_str(), output.size(), 1, out);
+				  fwrite(outputCode(output).c_str(), output.size(), 1, out);
 
 
 				  printf("Decrypting OK\n");
+				  if (output.size() != inputHeader.ouput)
+				  {
+					  printf("WARNING ! The length of decompressed file differs from CBF value.\n");
+					  printf("Stored: %u Ouput: %u\n",output.size(),inputHeader.ouput);
+				  }
+				  
 				  delete data;
 				  break;
 		}
@@ -281,6 +287,8 @@ int main(int argc, const char* argv[])
 
 			fread(fileTable, fileHeader.sizeOfItemArea, 1, input);
 
+			CreateDirectoryA("unpack", NULL);
+			SetCurrentDirectoryA("./unpack");
 			//parseTableOfFile(fileTable, fileHeader.sizeOfItemArea);
 			std::vector<gameFile> list = getListOfFiles(fileTable, fileHeader.sizeOfItemArea);
 			for (auto file : list)
@@ -288,9 +296,18 @@ int main(int argc, const char* argv[])
 				printf("%p[%p]\t%s\n",file.start,file.size,file.name);
 				unpackFile(&file, input);
 			}
+			delete[] fileTable;
 			return 0;
 		}
 		fclose(input);
 	}
-	return 1;
+	else {
+		char dir[200];
+		GetCurrentDirectoryA(200, dir);
+		printf("%s\n",dir);
+		printf("Failed to open '%s'\n", argv[1]);
+		system("pause");
+	}
+	
+	return	2;
 }
